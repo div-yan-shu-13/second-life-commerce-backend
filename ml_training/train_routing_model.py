@@ -28,7 +28,7 @@ GRADE_MAP = {"like_new": 4, "very_good": 3, "good": 2, "acceptable": 1, "for_par
 ROUTE_MAP = {"resell_as_is": 0, "refurbish": 1, "donate": 2, "recycle": 3, "peer_exchange": 4}
 
 CATEGORY_RETURN_RATES = {"electronics": 0.15, "clothing": 0.30, "home": 0.12, "books": 0.05, "toys": 0.10}
-REFURB_COST = {"electronics": 45.0, "clothing": 8.0, "home": 20.0, "books": 3.0, "toys": 10.0}
+REFURB_COST = {"electronics": 3500.0, "clothing": 600.0, "home": 1500.0, "books": 200.0, "toys": 800.0}
 
 # Feature engineering
 df["category_encoded"] = df["product_category"].map(CATEGORY_MAP)

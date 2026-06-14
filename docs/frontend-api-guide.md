@@ -7,7 +7,7 @@ Local:      http://localhost:8000
 Production: https://second-life-commerce-api.onrender.com  (update once deployed)
 ```
 
-CORS is fully open (`*`) — you can call from any frontend origin.
+CORS is fully open (`*`) — call from any frontend origin, no proxy needed, no auth required.
 
 ## Interactive API Docs
 
@@ -31,9 +31,7 @@ Visit `{BASE_URL}/docs` for Swagger UI with try-it-out functionality.
 
 ---
 
-## Demo Data Available
-
-These IDs are pre-seeded and ready to use:
+## Demo Data (Pre-seeded)
 
 **Customers:**
 | customer_id | Profile | Return Rate |
@@ -53,23 +51,15 @@ These IDs are pre-seeded and ready to use:
 | `prod-004` | Clothing | 45% | Inconsistent sizing, no size chart |
 | `prod-005` | Electronics | 5% | Almost no issues |
 
-**Good demo scenarios:**
+**Demo scenarios:**
 - Low risk: `cust-005` + `prod-005`
-- Medium risk: `cust-001` + `prod-003`
-- High risk: `cust-002` + `prod-002`
-- Very high risk: `cust-004` + `prod-004`
+- High risk: `cust-004` + `prod-004`
 
 ---
 
-## Endpoint Details
-
----
-
-### 1. Return Prevention — Score Risk
+## Endpoint 1: Score Return Risk
 
 **`POST /api/v1/prevention/score`**
-
-Call this when a user is browsing/adding to cart/checking out. Returns a risk score and suggested interventions to show them.
 
 **Request:**
 ```json
@@ -84,7 +74,7 @@ Call this when a user is browsing/adding to cart/checking out. Returns a risk sc
 |-------|------|----------|--------|
 | customer_id | string | yes | Any customer ID |
 | product_id | string | yes | Any product ID |
-| context | string | yes | `"browse"`, `"cart_add"`, or `"checkout"` |
+| context | string | yes | `"browse"`, `"cart_add"`, `"checkout"` |
 
 **Response:**
 ```json
@@ -93,53 +83,27 @@ Call this when a user is browsing/adding to cart/checking out. Returns a risk sc
   "risk_score": 0.4125,
   "risk_bucket": "medium",
   "top_risk_factors": [
-    {
-      "factor": "customer_return_rate",
-      "contribution": 0.15,
-      "detail": "Customer has a 38% return rate"
-    },
-    {
-      "factor": "product_return_rate",
-      "contribution": 0.18,
-      "detail": "Product has a 45% return rate"
-    }
+    { "factor": "customer_return_rate", "contribution": 0.15, "detail": "Customer has a 42% return rate" },
+    { "factor": "product_return_rate", "contribution": 0.18, "detail": "Product has a 45% return rate" }
   ],
   "recommended_interventions": [
-    {
-      "type": "size_recommendation",
-      "priority": 1,
-      "message": "Customers similar to you found this item runs small. Consider sizing up."
-    },
-    {
-      "type": "review_highlight",
-      "priority": 2,
-      "message": "See what verified buyers say about this product's quality."
-    }
+    { "type": "size_recommendation", "priority": 1, "message": "Customers similar to you found this item runs small. Consider sizing up." },
+    { "type": "review_highlight", "priority": 2, "message": "See what verified buyers say about this product's quality." }
   ]
 }
 ```
 
-**Response fields:**
 | Field | Type | Description |
 |-------|------|-------------|
-| risk_score | float (0-1) | Higher = more likely to return |
-| risk_bucket | string | `"low"` (<0.3), `"medium"` (0.3-0.6), `"high"` (>0.6) |
-| top_risk_factors | array | Why this is risky (show as explanation) |
-| recommended_interventions | array | What to show the user to prevent return |
-
-**Frontend usage ideas:**
-- Show a warning banner if `risk_bucket` is "high"
-- Display intervention messages as helpful tips
-- Show a risk meter/gauge visualization
-- Color-code: green (low), yellow (medium), red (high)
+| risk_score | float (0-1) | Multiply by 100 for percentage |
+| risk_bucket | `"low"` / `"medium"` / `"high"` | Thresholds: <0.3 / 0.3-0.6 / >0.6 |
+| recommended_interventions | array | Sorted by priority (1 = most important) |
 
 ---
 
-### 2. Product Return Signals
+## Endpoint 2: Product Return Signals
 
 **`GET /api/v1/prevention/product-signals/{product_id}`**
-
-Get pre-computed return statistics for a product. Useful for product detail pages.
 
 **Response:**
 ```json
@@ -147,10 +111,7 @@ Get pre-computed return statistics for a product. Useful for product detail page
   "product_id": "prod-002",
   "category": "clothing",
   "overall_return_rate": 0.35,
-  "return_rate_by_reason": {
-    "wrong_size": "0.25",
-    "not_as_described": "0.10"
-  },
+  "return_rate_by_reason": { "wrong_size": "0.25", "not_as_described": "0.10" },
   "size_issue_rate": 0.25,
   "avg_review_sentiment": 0.55,
   "description_completeness": 0.5,
@@ -158,20 +119,14 @@ Get pre-computed return statistics for a product. Useful for product detail page
 }
 ```
 
-**Frontend usage ideas:**
-- Show "25% of buyers had size issues" on product page
-- Display common complaints as heads-up
-- Show a "return likelihood" badge
+Returns `404` if product not found.
 
 ---
 
-### 3. Prevention Analytics
+## Endpoint 3: Prevention Analytics
 
 **`GET /api/v1/prevention/analytics`**
 
-Aggregated stats for a dashboard view.
-
-**Response:**
 ```json
 {
   "total_predictions": 42,
@@ -183,11 +138,13 @@ Aggregated stats for a dashboard view.
 
 ---
 
-### 4. Quality Grading — Assess Product
+## Endpoint 4: Quality Grading
 
 **`POST /api/v1/grading/assess`**
 
-Upload product images for AI-powered condition grading. This is the core feature — uses Gemini vision AI to analyze the product.
+Upload product images for AI condition grading (uses Google Gemini vision).
+
+**⚠️ Takes 10-15 seconds — show a loading spinner.**
 
 **Request:** `multipart/form-data`
 
@@ -195,88 +152,70 @@ Upload product images for AI-powered condition grading. This is the core feature
 |-------|------|----------|-------|
 | product_id | string | yes | Product being graded |
 | product_category | string | yes | `"electronics"`, `"clothing"`, `"home"`, `"books"`, `"toys"` |
-| images | File[] | yes | 1-5 image files (JPEG, PNG, WebP) |
-| text_description | string | no | Optional seller/returner description |
+| images | File (1-5) | yes | Image files (JPEG, PNG, WebP) |
+| text_description | string | no | Optional description of the item |
 | return_id | string | no | Link to a return event |
 
-**JavaScript/fetch example:**
-```javascript
-const formData = new FormData();
-formData.append('product_id', 'prod-001');
-formData.append('product_category', 'electronics');
-formData.append('images', fileInput.files[0]);  // File from <input type="file">
-formData.append('text_description', 'Phone with cracked screen');
-
-const response = await fetch(`${BASE_URL}/api/v1/grading/assess`, {
-  method: 'POST',
-  body: formData,
-  // Do NOT set Content-Type header — browser sets it with boundary
-});
-
-const result = await response.json();
-```
-
-**Response:**
+**Success Response:**
 ```json
 {
   "grading_id": "858583bb-43f9-4336-8c83-ceaa7a17eee7",
   "overall_grade": "for_parts",
   "confidence": 0.95,
   "defects": [
-    {
-      "type": "screen_damage",
-      "severity": "severe"
-    }
+    { "type": "screen_damage", "severity": "severe" }
   ],
-  "explanation": "The smartphone has a severely cracked screen covering the entire display, making it largely unusable and suitable only for parts or recycling.",
-  "image_urls": [
-    "https://second-life-commerce-images.s3.amazonaws.com/grading/..."
-  ],
+  "explanation": "The smartphone has a severely cracked screen covering the entire display.",
+  "image_urls": ["https://...s3.amazonaws.com/grading/..."],
   "processing_time_ms": 14330
 }
 ```
 
-**Response fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| overall_grade | string | `"like_new"`, `"very_good"`, `"good"`, `"acceptable"`, `"for_parts"` |
-| confidence | float (0-1) | Model confidence in the grade |
-| defects | array | Detected issues with type and severity |
-| explanation | string | AI-generated human-readable explanation |
-| image_urls | array | Presigned S3 URLs of uploaded images (valid 1 hour) |
-| processing_time_ms | int | How long AI analysis took |
+**Error Response (invalid image — not a product, or wrong category):**
+```json
+{
+  "grading_id": "...",
+  "error": true,
+  "overall_grade": null,
+  "confidence": 0.0,
+  "defects": [],
+  "explanation": "Image does not appear to show a product. Please upload a clear photo of the item you are returning.",
+  "image_urls": ["..."],
+  "processing_time_ms": 3000
+}
+```
+
+**⚠️ Check `if (result.error)` before displaying grade results.**
+
+The AI validates:
+1. Image must show a physical product (rejects landscapes, selfies, memes, etc.)
+2. Product must match the selected category (rejects TV photo when category is "clothing")
+
+**Grade scale:**
+| Grade | Meaning | Color |
+|-------|---------|-------|
+| `like_new` | Perfect condition | 🟢 Green |
+| `very_good` | Minimal wear | 🟢 Light green |
+| `good` | Visible wear, functional | 🟡 Yellow |
+| `acceptable` | Significant damage, functional | 🟠 Orange |
+| `for_parts` | Major damage, not functional | 🔴 Red |
 
 **Defect types:** `scratch`, `dent`, `stain`, `crack`, `wear`, `missing_part`, `screen_damage`, `broken`
-
-**Severity levels:** `minor`, `moderate`, `severe`
-
-**Frontend usage ideas:**
-- Drag-and-drop image upload zone
-- Show grade as a colored badge (green→red scale)
-- Display defects as a list with severity icons
-- Show the AI explanation in a card
-- Display uploaded image with the grade overlaid
-- Progress spinner during the ~10-15 second processing time
-
-**⚠️ Note:** This endpoint takes 10-15 seconds due to AI processing. Show a loading state.
+**Severity:** `minor`, `moderate`, `severe`
 
 ---
 
-### 5. Get Grading Result
+## Endpoint 5: Get Previous Grading
 
 **`GET /api/v1/grading/{grading_id}`**
 
-Fetch a previously completed grading.
-
-**Response:** Same format as assess response.
+Same response format as above.
 
 ---
 
-### 6. Product Routing — Decide Route
+## Endpoint 6: Route a Returned Product
 
 **`POST /api/v1/routing/decide`**
-
-After grading, determine what to do with the product.
 
 **Request:**
 ```json
@@ -285,21 +224,21 @@ After grading, determine what to do with the product.
   "product_id": "prod-001",
   "return_reason": "defective",
   "product_category": "electronics",
-  "original_price": 699.99,
+  "original_price": 55000.0,
   "product_age_days": 45,
   "condition_grade": "for_parts"
 }
 ```
 
-| Field | Type | Required | Values |
-|-------|------|----------|--------|
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
 | return_id | string | yes | Unique return identifier |
 | product_id | string | yes | Product being returned |
 | return_reason | string | yes | `"wrong_size"`, `"defective"`, `"not_as_described"`, `"no_longer_needed"`, `"better_price_found"` |
 | product_category | string | yes | `"electronics"`, `"clothing"`, `"home"`, `"books"`, `"toys"` |
-| original_price | float | yes | Original purchase price |
+| original_price | float | yes | Original price in ₹ (INR) |
 | product_age_days | int | yes | Days since purchase |
-| condition_grade | string | no | From grading service: `"like_new"`, `"very_good"`, `"good"`, `"acceptable"`, `"for_parts"` |
+| condition_grade | string | no | From grading endpoint |
 
 **Response:**
 ```json
@@ -307,8 +246,8 @@ After grading, determine what to do with the product.
   "decision_id": "020bbe29-e79a-4673-ac74-c29077e35f3d",
   "route": "recycle",
   "confidence": 0.97,
-  "estimated_recovery_usd": 35.0,
-  "estimated_cost_usd": 1.0,
+  "estimated_recovery_pct": 5.0,
+  "estimated_cost_pct": 0.15,
   "reasoning": {
     "method": "ml_model",
     "top_factors": [
@@ -321,40 +260,43 @@ After grading, determine what to do with the product.
 }
 ```
 
-**Routes:**
-| Route | Meaning | Icon suggestion |
-|-------|---------|-----------------|
-| `resell_as_is` | Sell directly on marketplace | 🏷️ |
-| `refurbish` | Fix and sell as refurbished | 🔧 |
-| `donate` | Donate to charity | 🎁 |
-| `recycle` | Recycle materials | ♻️ |
-| `peer_exchange` | Peer-to-peer resale | 🤝 |
+| Field | Type | Description |
+|-------|------|-------------|
+| route | string | Recommended action (see table below) |
+| confidence | float (0-1) | AI confidence |
+| estimated_recovery_pct | float | % of original price recovered. Calculate ₹ value: `price × recovery_pct / 100` |
+| estimated_cost_pct | float | % of original price as processing cost. Calculate ₹ value: `price × cost_pct / 100` |
+| requires_human_review | boolean | `true` if confidence < 60% |
 
-**Frontend usage ideas:**
-- Show route as a big colored card with icon
-- Display confidence as a percentage bar
-- Show estimated recovery vs cost (net value)
-- Show reasoning factors as a simple chart
-- If `requires_human_review: true`, show a "needs manual review" badge
-- Animate the routing decision (like a sorting/flow animation)
+**Recovery/Cost calculation example:**
+- Product price: ₹55,000
+- `estimated_recovery_pct`: 75.0 → Recovery = ₹55,000 × 75/100 = **₹41,250**
+- `estimated_cost_pct`: 1.0 → Cost = ₹55,000 × 1/100 = **₹550**
+- Net value = ₹41,250 - ₹550 = **₹40,700**
+
+**Routes:**
+| Route | Meaning | Typical Recovery % | Icon |
+|-------|---------|-------------------|------|
+| `resell_as_is` | Sell on marketplace directly | 75% | 🏷️ |
+| `refurbish` | Repair then sell as refurbished | 55% | 🔧 |
+| `peer_exchange` | Peer-to-peer resale | 60% | 🤝 |
+| `donate` | Give to charity | 0% | 🎁 |
+| `recycle` | Salvage materials | 5% | ♻️ |
 
 ---
 
-### 7. Get Routing Decision
+## Endpoint 7: Get Routing Decision
 
 **`GET /api/v1/routing/decisions/{decision_id}`**
 
-Fetch a previous routing decision.
+Returns the stored decision. Same fields as above.
 
 ---
 
-### 8. Override Routing Decision
+## Endpoint 8: Override Routing Decision
 
 **`POST /api/v1/routing/decisions/{decision_id}/override`**
 
-For admin/manual override of AI decisions.
-
-**Request:**
 ```json
 {
   "new_route": "refurbish",
@@ -374,107 +316,22 @@ For admin/manual override of AI decisions.
 
 ---
 
-## Full Demo Flow (Suggested UI Pages)
+## Full End-to-End Flow
 
-### Page 1: Return Prevention Dashboard
 ```
-User selects customer → selects product → clicks "Check Risk"
-→ Shows risk score gauge (0-100%)
-→ Shows risk factors as cards
-→ Shows recommended interventions as action items
-```
-
-### Page 2: Product Grading
-```
-User uploads product photo(s) → clicks "Analyze"
-→ Loading spinner (10-15 sec)
-→ Shows grade badge (like_new → for_parts)
-→ Shows defects list
-→ Shows AI explanation
-→ Shows uploaded image
-```
-
-### Page 3: Product Routing
-```
-User fills return info OR auto-fills from grading
-→ Clicks "Decide Route"
-→ Shows animated routing decision
-→ Shows route card with icon
-→ Shows confidence + reasoning
-→ Shows estimated $ recovery
-→ Optional: Override button for admin
-```
-
-### Page 4: End-to-End Flow
-```
-Combines all 3 in sequence:
-Prevention check → Purchase → Return → Grade → Route
-Shows the full product lifecycle
-```
-
-### Page 5: Analytics Dashboard
-```
-Shows aggregate stats:
-- Total predictions made
-- Returns prevented
-- Products routed by category (pie chart)
-- Average confidence scores
+1. Customer browses → POST /prevention/score → show interventions if high risk
+2. Customer returns → POST /grading/assess (upload photo) → show grade
+3. System routes   → POST /routing/decide (pass grade) → show route + recovery %
 ```
 
 ---
 
-## Error Handling
+## Important Notes
 
-All endpoints return standard HTTP status codes:
-
-| Status | Meaning |
-|--------|---------|
-| 200 | Success |
-| 400 | Bad request (invalid input) |
-| 404 | Resource not found |
-| 500 | Server error |
-
-Error response format:
-```json
-{
-  "detail": "Decision not found"
-}
-```
-
----
-
-## Tips for Frontend Dev
-
-1. **CORS is open** — no proxy needed, call the API directly from browser
-2. **No auth required** — no tokens/headers needed (hackathon simplicity)
-3. **Image upload** — use `FormData`, don't set Content-Type header manually
-4. **Grading is slow** (~15 sec) — show a good loading state
-5. **All IDs are UUIDs** — returned by creation endpoints, use them for fetches
-6. **Presigned image URLs** expire after 1 hour — fetch fresh if displaying later
-7. **Risk score is 0-1** — multiply by 100 for percentage display
-8. **Render cold starts** — first request after 15 min inactivity takes ~30 sec
-
----
-
-## Quick Test with curl
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Prevention score
-curl -X POST http://localhost:8000/api/v1/prevention/score \
-  -H "Content-Type: application/json" \
-  -d '{"customer_id":"cust-002","product_id":"prod-004","context":"checkout"}'
-
-# Routing decision
-curl -X POST http://localhost:8000/api/v1/routing/decide \
-  -H "Content-Type: application/json" \
-  -d '{"return_id":"ret-001","product_id":"prod-001","return_reason":"defective","product_category":"electronics","original_price":699.99,"product_age_days":45,"condition_grade":"for_parts"}'
-
-# Grading (with image file)
-curl -X POST http://localhost:8000/api/v1/grading/assess \
-  -F "product_id=prod-001" \
-  -F "product_category=electronics" \
-  -F "images=@broken_phone.png"
-```
+1. **All prices are in ₹ (INR)** — this is built for Amazon India
+2. **Recovery/cost are percentages** — multiply by price/100 to get ₹ amount
+3. **Grading validates images** — rejects non-product photos and wrong-category items
+4. **Grading takes 10-15 sec** — always show a loading state
+5. **Image URLs expire after 1 hour** — re-fetch grading result if needed later
+6. **CORS is open** — no proxy or auth needed
+7. **First request after idle ~30 sec** — keep-alive should prevent this

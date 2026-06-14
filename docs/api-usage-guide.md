@@ -10,6 +10,8 @@ Production: https://second-life-commerce-api.onrender.com
 - CORS is fully open — call from any origin, no proxy needed
 - No authentication required
 - All responses are JSON (except grading which accepts multipart/form-data)
+- **All prices are in ₹ (INR)** — built for Amazon India
+- **Recovery/cost values are percentages** — multiply by `original_price / 100` to get ₹ amount
 - Interactive docs at `{BASE_URL}/docs`
 
 ---
@@ -303,6 +305,28 @@ async function getAnalytics() {
 | `image_urls` | array | Presigned S3 URLs to view uploaded images (expire in 1 hour) |
 | `processing_time_ms` | int | How long analysis took in milliseconds |
 
+### Image Validation
+
+The AI validates uploaded images before grading:
+1. **Must be a product** — rejects landscapes, selfies, memes, food photos, etc.
+2. **Must match category** — rejects a TV photo when `product_category` is "clothing"
+
+**Error response (invalid image):**
+```json
+{
+  "grading_id": "...",
+  "error": true,
+  "overall_grade": null,
+  "confidence": 0.0,
+  "defects": [],
+  "explanation": "Image does not appear to show a product. Please upload a clear photo of the item you are returning.",
+  "image_urls": ["..."],
+  "processing_time_ms": 3000
+}
+```
+
+**⚠️ Always check `if (result.error)` before displaying grade results.**
+
 ### Grade Scale
 
 | Grade | Meaning | Color Suggestion |
@@ -454,7 +478,7 @@ async function getGrading(gradingId) {
   "product_id": "prod-001",
   "return_reason": "defective",
   "product_category": "electronics",
-  "original_price": 699.99,
+  "original_price": 55000.0,
   "product_age_days": 45,
   "condition_grade": "for_parts"
 }
@@ -466,7 +490,7 @@ async function getGrading(gradingId) {
 | `product_id` | string | ✅ | Product being returned | Any string |
 | `return_reason` | string | ✅ | Why they're returning it | `"wrong_size"`, `"defective"`, `"not_as_described"`, `"no_longer_needed"`, `"better_price_found"` |
 | `product_category` | string | ✅ | Product category | `"electronics"`, `"clothing"`, `"home"`, `"books"`, `"toys"` |
-| `original_price` | float | ✅ | How much it cost (USD) | Any positive number |
+| `original_price` | float | ✅ | How much it cost (₹ INR) | Any positive number |
 | `product_age_days` | int | ✅ | Days since purchase | Any positive integer |
 | `condition_grade` | string | ❌ | From grading endpoint | `"like_new"`, `"very_good"`, `"good"`, `"acceptable"`, `"for_parts"` |
 
@@ -477,8 +501,8 @@ async function getGrading(gradingId) {
   "decision_id": "020bbe29-e79a-4673-ac74-c29077e35f3d",
   "route": "recycle",
   "confidence": 0.97,
-  "estimated_recovery_usd": 35.0,
-  "estimated_cost_usd": 1.0,
+  "estimated_recovery_pct": 5.0,
+  "estimated_cost_pct": 0.15,
   "reasoning": {
     "method": "ml_model",
     "top_factors": [
@@ -496,8 +520,8 @@ async function getGrading(gradingId) {
 | `decision_id` | string (UUID) | Unique ID for this decision |
 | `route` | string | The recommended action (see table below) |
 | `confidence` | float (0-1) | How confident the AI is |
-| `estimated_recovery_usd` | float | Estimated money recovered |
-| `estimated_cost_usd` | float | Estimated cost to process |
+| `estimated_recovery_pct` | float | % of original price that can be recovered. Calculate ₹: `price × pct / 100` |
+| `estimated_cost_pct` | float | % of original price as processing cost. Calculate ₹: `price × pct / 100` |
 | `reasoning.method` | string | `"ml_model"` or `"rule_based"` |
 | `reasoning.top_factors` | array | Which features drove the decision |
 | `requires_human_review` | boolean | `true` if confidence < 60% |
@@ -530,16 +554,20 @@ const result = await routeProduct({
   product_id: 'prod-001',
   return_reason: 'defective',
   product_category: 'electronics',
-  original_price: 699.99,
+  original_price: 55000,
   product_age_days: 45,
   condition_grade: 'for_parts'   // from grading endpoint
 });
 
 console.log(`Route: ${result.route}`);           // "recycle"
 console.log(`Confidence: ${result.confidence}`); // 0.97
-console.log(`Recovery: $${result.estimated_recovery_usd}`);
-console.log(`Cost: $${result.estimated_cost_usd}`);
-console.log(`Net: $${result.estimated_recovery_usd - result.estimated_cost_usd}`);
+console.log(`Recovery: ${result.estimated_recovery_pct}%`);  // "5%"
+console.log(`Cost: ${result.estimated_cost_pct}%`);          // "0.15%"
+// Calculate actual INR values
+const price = 55000;
+console.log(`Recovery ₹: ${price * result.estimated_recovery_pct / 100}`);
+console.log(`Cost ₹: ${price * result.estimated_cost_pct / 100}`);
+console.log(`Net ₹: ${price * (result.estimated_recovery_pct - result.estimated_cost_pct) / 100}`);
 ```
 
 ### Demo Scenarios
@@ -549,28 +577,28 @@ console.log(`Net: $${result.estimated_recovery_usd - result.estimated_cost_usd}`
 await routeProduct({
   return_id: 'demo-1', product_id: 'prod-001',
   return_reason: 'no_longer_needed', product_category: 'electronics',
-  original_price: 499.99, product_age_days: 7, condition_grade: 'like_new'
+  original_price: 42000, product_age_days: 7, condition_grade: 'like_new'
 });
 
 // Damaged but fixable electronics → refurbish
 await routeProduct({
   return_id: 'demo-2', product_id: 'prod-001',
   return_reason: 'defective', product_category: 'electronics',
-  original_price: 299.99, product_age_days: 30, condition_grade: 'acceptable'
+  original_price: 25000, product_age_days: 30, condition_grade: 'acceptable'
 });
 
 // Cheap book, good condition → donate
 await routeProduct({
   return_id: 'demo-3', product_id: 'prod-001',
   return_reason: 'no_longer_needed', product_category: 'books',
-  original_price: 12.99, product_age_days: 60, condition_grade: 'good'
+  original_price: 350, product_age_days: 60, condition_grade: 'good'
 });
 
 // Destroyed phone → recycle
 await routeProduct({
   return_id: 'demo-4', product_id: 'prod-001',
   return_reason: 'defective', product_category: 'electronics',
-  original_price: 699.99, product_age_days: 45, condition_grade: 'for_parts'
+  original_price: 55000, product_age_days: 45, condition_grade: 'for_parts'
 });
 ```
 
@@ -718,7 +746,7 @@ const routingResult = await fetch(`${BASE_URL}/api/v1/routing/decide`, {
     product_id: 'prod-002',
     return_reason: 'not_as_described',
     product_category: 'clothing',
-    original_price: 45.99,
+    original_price: 3500,
     product_age_days: 14,
     condition_grade: gradingResult.overall_grade  // "acceptable"
   })

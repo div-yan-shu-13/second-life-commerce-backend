@@ -12,27 +12,27 @@ def decide_route(data: dict) -> dict:
     prediction = routing_model.predict(data)
 
     # Estimate recovery and cost
-    price = float(data.get("original_price", 50.0))
+    price = float(data.get("original_price", 4000.0))
     category = data.get("product_category", "electronics").lower()
     route = prediction["route"]
 
     recovery_estimates = {
-        "resell_as_is": price * 0.75,
-        "refurbish": price * 0.55,
-        "peer_exchange": price * 0.60,
+        "resell_as_is": 75.0,
+        "refurbish": 55.0,
+        "peer_exchange": 60.0,
         "donate": 0.0,
-        "recycle": price * 0.05,
+        "recycle": 5.0,
     }
     cost_estimates = {
-        "resell_as_is": 5.0,
-        "refurbish": REFURB_COST.get(category, 20.0),
-        "peer_exchange": 3.0,
-        "donate": 2.0,
-        "recycle": 1.0,
+        "resell_as_is": 1.0,
+        "refurbish": (REFURB_COST.get(category, 1500.0) / price) * 100 if price > 0 else 5.0,
+        "peer_exchange": 0.5,
+        "donate": 0.3,
+        "recycle": 0.2,
     }
 
-    estimated_recovery = recovery_estimates.get(route, 0.0)
-    estimated_cost = cost_estimates.get(route, 5.0)
+    estimated_recovery_pct = recovery_estimates.get(route, 0.0)
+    estimated_cost_pct = round(cost_estimates.get(route, 1.0), 2)
 
     decision_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -44,8 +44,8 @@ def decide_route(data: dict) -> dict:
         "confidence_score": Decimal(str(round(prediction["confidence"], 4))),
         "model_version": "lgbm_v1" if routing_model.model else "rule_based_v1",
         "reasoning": prediction["reasoning"],
-        "estimated_recovery": Decimal(str(round(estimated_recovery, 2))),
-        "estimated_cost": Decimal(str(round(estimated_cost, 2))),
+        "estimated_recovery": Decimal(str(round(estimated_recovery_pct, 2))),
+        "estimated_cost": Decimal(str(round(estimated_cost_pct, 2))),
         "decided_at": now,
         "outcome_status": "pending",
         "created_at": now,
@@ -57,8 +57,8 @@ def decide_route(data: dict) -> dict:
         "decision_id": decision_id,
         "route": route,
         "confidence": prediction["confidence"],
-        "estimated_recovery_usd": round(estimated_recovery, 2),
-        "estimated_cost_usd": round(estimated_cost, 2),
+        "estimated_recovery_pct": round(estimated_recovery_pct, 2),
+        "estimated_cost_pct": round(estimated_cost_pct, 2),
         "reasoning": prediction["reasoning"],
         "requires_human_review": prediction["confidence"] < 0.6,
     }

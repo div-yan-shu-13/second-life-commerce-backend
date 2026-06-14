@@ -31,13 +31,13 @@ CATEGORY_RETURN_RATES = {
     "toys": 0.10,
 }
 
-# Refurbishment cost estimates by category (USD)
+# Refurbishment cost estimates by category (INR)
 REFURB_COST = {
-    "electronics": 45.0,
-    "clothing": 8.0,
-    "home": 20.0,
-    "books": 3.0,
-    "toys": 10.0,
+    "electronics": 3500.0,
+    "clothing": 600.0,
+    "home": 1500.0,
+    "books": 200.0,
+    "toys": 800.0,
 }
 
 
@@ -58,14 +58,14 @@ class RoutingModel:
         category = data.get("product_category", "electronics").lower()
         reason = data.get("return_reason", "no_longer_needed").lower()
         condition = data.get("condition_grade", "good").lower()
-        price = float(data.get("original_price", 50.0))
+        price = float(data.get("original_price", 4000.0))
         age_days = int(data.get("product_age_days", 30))
 
         category_encoded = CATEGORY_MAP.get(category, 0)
         reason_encoded = REASON_MAP.get(reason, 3)
         condition_encoded = GRADE_MAP.get(condition, 2)
         category_return_rate = CATEGORY_RETURN_RATES.get(category, 0.15)
-        refurb_cost = REFURB_COST.get(category, 20.0)
+        refurb_cost = REFURB_COST.get(category, 1500.0)
 
         # Estimated resale value: price * condition factor
         condition_factor = {4: 0.85, 3: 0.70, 2: 0.55, 1: 0.35, 0: 0.10}
@@ -86,22 +86,22 @@ class RoutingModel:
     def _rule_based_fallback(self, data: dict) -> dict:
         """Rule-based routing when ML model is not available."""
         condition = data.get("condition_grade", "good").lower()
-        price = float(data.get("original_price", 50.0))
+        price = float(data.get("original_price", 4000.0))
         reason = data.get("return_reason", "no_longer_needed").lower()
 
-        if condition in ("like_new", "very_good") and price > 30:
+        if condition in ("like_new", "very_good") and price > 2500:
             route = "resell_as_is"
             confidence = 0.85
         elif condition == "good" and reason != "defective":
             route = "refurbish"
             confidence = 0.70
-        elif condition == "acceptable" and price > 20:
+        elif condition == "acceptable" and price > 1500:
             route = "refurbish"
             confidence = 0.60
-        elif condition == "for_parts" or (condition == "acceptable" and price < 10):
+        elif condition == "for_parts" or (condition == "acceptable" and price < 800):
             route = "recycle"
             confidence = 0.75
-        elif price < 15:
+        elif price < 1200:
             route = "donate"
             confidence = 0.65
         else:

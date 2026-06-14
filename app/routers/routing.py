@@ -12,7 +12,7 @@ class RouteRequest(BaseModel):
     product_id: str
     return_reason: str
     product_category: str = "electronics"
-    original_price: float = 50.0
+    original_price: float = 4000.0
     product_age_days: int = 30
     condition_grade: Optional[str] = None
     condition_confidence: Optional[float] = None

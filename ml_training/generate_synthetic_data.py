@@ -21,13 +21,13 @@ ROUTES = ["resell_as_is", "refurbish", "donate", "recycle", "peer_exchange"]
 CONDITION_GRADES = ["like_new", "very_good", "good", "acceptable", "for_parts"]
 GRADE_NUMERIC = {"like_new": 4, "very_good": 3, "good": 2, "acceptable": 1, "for_parts": 0}
 
-# Price ranges by category
+# Price ranges by category (INR)
 PRICE_RANGES = {
-    "electronics": (20, 800),
-    "clothing": (10, 200),
-    "home": (15, 500),
-    "books": (5, 50),
-    "toys": (8, 100),
+    "electronics": (1500, 65000),
+    "clothing": (500, 15000),
+    "home": (800, 40000),
+    "books": (200, 3000),
+    "toys": (400, 8000),
 }
 
 # Return reason probabilities by category
@@ -45,19 +45,19 @@ def determine_optimal_route(category, price, condition_grade, return_reason):
     grade_num = GRADE_NUMERIC[condition_grade]
 
     # High condition + decent price → resell
-    if grade_num >= 3 and price > 30:
+    if grade_num >= 3 and price > 2500:
         base_route = "resell_as_is"
     # Medium condition + worth refurbishing
-    elif grade_num >= 1 and price > 20 and category in ("electronics", "home"):
+    elif grade_num >= 1 and price > 1500 and category in ("electronics", "home"):
         base_route = "refurbish"
     # Low price items in good condition → peer exchange
-    elif grade_num >= 2 and price <= 30:
+    elif grade_num >= 2 and price <= 2500:
         base_route = "peer_exchange"
     # Very damaged
     elif grade_num == 0:
         base_route = "recycle"
     # Low value items
-    elif price < 15:
+    elif price < 1200:
         base_route = "donate"
     else:
         base_route = "refurbish"
