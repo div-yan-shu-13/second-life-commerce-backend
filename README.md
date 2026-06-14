@@ -76,4 +76,4 @@ Render.com (FastAPI)
 
 ## Team
 
-Built for Amazon HackOn 2025.
+Built for Amazon HackOn 2026.
