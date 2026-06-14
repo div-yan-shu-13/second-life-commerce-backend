@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+*.pkl
+!trained_models/.gitkeep
+.DS_Store
+*.log
