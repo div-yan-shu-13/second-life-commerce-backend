@@ -1,7 +1,32 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import asyncio
+import httpx
+import os
 
 from app.routers import routing, grading, prevention
+
+
+async def keep_alive():
+    """Ping self every 10 minutes to prevent Render free tier from sleeping."""
+    await asyncio.sleep(60)  # Wait for server to fully start
+    url = os.getenv("RENDER_EXTERNAL_URL", "http://localhost:8000")
+    async with httpx.AsyncClient() as client:
+        while True:
+            try:
+                await client.get(f"{url}/health", timeout=10)
+            except Exception:
+                pass
+            await asyncio.sleep(600)  # 10 minutes
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(keep_alive())
+    yield
+    task.cancel()
+
 
 app = FastAPI(
     title="Second Life Commerce API",
@@ -11,6 +36,7 @@ app = FastAPI(
         "and predictive return prevention."
     ),
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS — allow all origins for hackathon (your teammate's UI can call freely)
