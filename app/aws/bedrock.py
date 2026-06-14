@@ -44,9 +44,23 @@ def grade_product_with_image(
     Free tier: 15 RPM, 1500 requests/day — plenty for hackathon.
     """
     prompt = """You are a product condition grading expert for a sustainable commerce platform.
-Look at this product image carefully and assess its physical condition.
 
-Product category: {category}
+FIRST: Validate the image:
+1. Does this image show a physical product (like a phone, laptop, clothing, appliance, book, toy, etc.)?
+   - If NO (e.g., landscape, selfie, meme, screenshot, food, nature), respond with:
+   {{"error": true, "message": "Image does not appear to show a product. Please upload a clear photo of the item you are returning."}}
+
+2. Does the product in the image match the category "{category}"?
+   - Electronics = phones, laptops, tablets, headphones, cameras, consoles, etc.
+   - Clothing = shirts, pants, dresses, shoes, jackets, accessories, etc.
+   - Home = furniture, kitchen items, decor, tools, appliances, etc.
+   - Books = books, notebooks, journals, etc.
+   - Toys = toys, games, puzzles, figures, etc.
+   - If the product clearly does NOT match the category, respond with:
+   {{"error": true, "message": "The image appears to show a [what you see], but the return is filed under '{category}'. Please upload a photo of the correct product."}}
+
+3. If the image passes both checks, assess its physical condition.
+
 Seller/returner description: {description}
 
 Grade this product on the following scale:

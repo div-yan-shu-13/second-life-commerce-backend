@@ -42,8 +42,9 @@ async def assess_product(
         upload_image(file_bytes, s3_key, image_file.content_type or "image/jpeg")
         image_keys.append(s3_key)
 
-    # Step 2: Grade using Bedrock vision (sends actual image to Claude)
+    # Step 2: Grade using Gemini vision (sends actual image)
     grading_result = None
+    is_invalid_image = False
 
     if settings.USE_BEDROCK and first_image_bytes:
         try:
@@ -53,8 +54,11 @@ async def assess_product(
                 text_description=text_description,
                 content_type=first_content_type,
             )
+            # Check if Gemini flagged this as not a product image
+            if grading_result and grading_result.get("error"):
+                is_invalid_image = True
         except Exception as e:
-            print(f"Bedrock vision error: {e}")
+            print(f"Gemini vision error: {e}")
 
     # Step 3: Fallback to Rekognition-based grading if Bedrock failed
     if grading_result is None:
@@ -76,6 +80,20 @@ async def assess_product(
         grading_result = _fallback_grading(unique_labels)
 
     processing_time_ms = int((time.time() - start_time) * 1000)
+
+    # If image was flagged as not a product, return error response
+    if is_invalid_image:
+        image_urls = [get_presigned_url(key) for key in image_keys]
+        return {
+            "grading_id": grading_id,
+            "error": True,
+            "overall_grade": None,
+            "confidence": 0.0,
+            "defects": [],
+            "explanation": grading_result.get("message", "Image does not appear to show a product. Please upload a clear photo of the item you are returning."),
+            "image_urls": image_urls,
+            "processing_time_ms": processing_time_ms,
+        }
 
     # Step 4: Store in DynamoDB
     now = datetime.now(timezone.utc).isoformat()
