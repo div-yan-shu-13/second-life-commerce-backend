@@ -2,6 +2,7 @@
 Vision grading using Google Gemini API (free tier).
 Bedrock was throttled on free AWS accounts, so we use Gemini as the
 primary vision model. Still stores data in AWS (S3 + DynamoDB).
+Supports two API keys for failover when daily limits are hit.
 """
 import json
 import re
@@ -10,8 +11,26 @@ from PIL import Image
 import io
 from app.config import settings
 
-# Configure Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY)
+# Track which key is active
+_active_key_index = 0
+
+
+def _get_api_keys():
+    keys = [settings.GEMINI_API_KEY]
+    if settings.GEMINI_API_KEY_2:
+        keys.append(settings.GEMINI_API_KEY_2)
+    return keys
+
+
+def _configure_gemini(key_index: int = 0):
+    """Configure Gemini with the specified key."""
+    keys = _get_api_keys()
+    if key_index < len(keys):
+        genai.configure(api_key=keys[key_index])
+
+
+# Configure with primary key on startup
+_configure_gemini(0)
 
 
 def grade_product_with_image(
@@ -50,16 +69,32 @@ Respond ONLY with valid JSON, no markdown, no code blocks, just the JSON object:
 
     model = genai.GenerativeModel("models/gemini-2.5-flash")
 
-    response = model.generate_content(
-        [prompt, image],
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.1,
-            max_output_tokens=1024,
-        ),
-    )
+    # Try with current key, failover to backup if rate limited
+    global _active_key_index
+    keys = _get_api_keys()
 
-    result_text = response.text
-    return _parse_grading_response(result_text)
+    for attempt in range(len(keys)):
+        try:
+            _configure_gemini(_active_key_index)
+            model = genai.GenerativeModel("models/gemini-2.5-flash")
+            response = model.generate_content(
+                [prompt, image],
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=1024,
+                ),
+            )
+            result_text = response.text
+            return _parse_grading_response(result_text)
+        except Exception as e:
+            error_str = str(e).lower()
+            if "429" in str(e) or "quota" in error_str or "rate" in error_str or "exhausted" in error_str:
+                print(f"Gemini key {_active_key_index + 1} rate limited, switching...")
+                _active_key_index = (_active_key_index + 1) % len(keys)
+            else:
+                raise e
+
+    raise Exception("All Gemini API keys exhausted")
 
 
 def grade_product_condition(
@@ -86,14 +121,31 @@ Grade this product. Respond ONLY with valid JSON, no markdown:
 {{"grade": "one of: like_new, very_good, good, acceptable, for_parts", "confidence": 0.85, "defects": [{{"type": "scratch or dent or stain or crack or wear or missing_part", "severity": "minor or moderate or severe"}}], "explanation": "Brief explanation"}}"""
 
     model = genai.GenerativeModel("models/gemini-2.5-flash")
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.1,
-            max_output_tokens=1024,
-        ),
-    )
-    return _parse_grading_response(response.text)
+
+    global _active_key_index
+    keys = _get_api_keys()
+
+    for attempt in range(len(keys)):
+        try:
+            _configure_gemini(_active_key_index)
+            model = genai.GenerativeModel("models/gemini-2.5-flash")
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.1,
+                    max_output_tokens=1024,
+                ),
+            )
+            return _parse_grading_response(response.text)
+        except Exception as e:
+            error_str = str(e).lower()
+            if "429" in str(e) or "quota" in error_str or "rate" in error_str or "exhausted" in error_str:
+                print(f"Gemini key {_active_key_index + 1} rate limited, switching...")
+                _active_key_index = (_active_key_index + 1) % len(keys)
+            else:
+                raise e
+
+    raise Exception("All Gemini API keys exhausted")
 
 
 def _parse_grading_response(result_text: str) -> dict:
