@@ -16,6 +16,7 @@ async def assess_product(
     image_files: list,
     text_description: str = "",
     return_id: str = None,
+    product_name: str = "",
 ) -> dict:
     """
     Full grading pipeline:
@@ -53,6 +54,7 @@ async def assess_product(
                 product_category=product_category,
                 text_description=text_description,
                 content_type=first_content_type,
+                product_name=product_name,
             )
             # Check if Gemini flagged this as not a product image
             if grading_result and grading_result.get("error"):

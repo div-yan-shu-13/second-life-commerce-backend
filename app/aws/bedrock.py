@@ -38,11 +38,29 @@ def grade_product_with_image(
     product_category: str,
     text_description: str = "",
     content_type: str = "image/jpeg",
+    product_name: str = "",
 ) -> dict:
     """
     Send image to Gemini for product condition grading.
     Free tier: 15 RPM, 1500 requests/day — plenty for hackathon.
     """
+    # Build product identity string for validation
+    if product_name:
+        product_identity = f'"{product_name}" (category: {product_category})'
+        product_check = f"""2. Does the image show the specific product: {product_identity}?
+   - If the image shows a completely different product (e.g., image shows a TV but the product is "{product_name}"), respond with:
+   {{{{"error": true, "message": "The image does not appear to show {product_name}. Please upload a photo of the correct product."}}}}"""
+    else:
+        product_identity = product_category
+        product_check = f"""2. Does the product in the image match the category "{product_category}"?
+   - Electronics = phones, laptops, tablets, headphones, cameras, consoles, etc.
+   - Clothing = shirts, pants, dresses, shoes, jackets, accessories, etc.
+   - Home = furniture, kitchen items, decor, tools, appliances, etc.
+   - Books = books, notebooks, journals, etc.
+   - Toys = toys, games, puzzles, figures, etc.
+   - If the product clearly does NOT match the category, respond with:
+   {{{{"error": true, "message": "The image appears to show a [what you see], but the return is filed under '{product_category}'. Please upload a photo of the correct product."}}}}"""
+
     prompt = """You are a product condition grading expert for a sustainable commerce platform.
 
 FIRST: Validate the image:
@@ -50,14 +68,7 @@ FIRST: Validate the image:
    - If NO (e.g., landscape, selfie, meme, screenshot, food, nature), respond with:
    {{"error": true, "message": "Image does not appear to show a product. Please upload a clear photo of the item you are returning."}}
 
-2. Does the product in the image match the category "{category}"?
-   - Electronics = phones, laptops, tablets, headphones, cameras, consoles, etc.
-   - Clothing = shirts, pants, dresses, shoes, jackets, accessories, etc.
-   - Home = furniture, kitchen items, decor, tools, appliances, etc.
-   - Books = books, notebooks, journals, etc.
-   - Toys = toys, games, puzzles, figures, etc.
-   - If the product clearly does NOT match the category, respond with:
-   {{"error": true, "message": "The image appears to show a [what you see], but the return is filed under '{category}'. Please upload a photo of the correct product."}}
+{product_check}
 
 3. If the image passes both checks, assess its physical condition.
 
@@ -74,7 +85,7 @@ Look carefully for: scratches, dents, cracks, stains, missing parts, screen dama
 
 Respond ONLY with valid JSON, no markdown, no code blocks, just the JSON object:
 {{"grade": "one of: like_new, very_good, good, acceptable, for_parts", "confidence": 0.85, "defects": [{{"type": "scratch or dent or stain or crack or wear or missing_part or screen_damage or broken", "severity": "minor or moderate or severe"}}], "explanation": "Brief explanation of what you see in the image"}}""".format(
-        category=product_category,
+        product_check=product_check,
         description=text_description or "No description provided",
     )
 

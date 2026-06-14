@@ -13,10 +13,11 @@ async def grading_assess(
     images: List[UploadFile] = File(...),
     text_description: Optional[str] = Form(None),
     return_id: Optional[str] = Form(None),
+    product_name: Optional[str] = Form(None),
 ):
     """
     Upload product images for AI-powered quality grading.
-    Uses Amazon Rekognition + Bedrock for condition assessment.
+    Uses Google Gemini vision AI for condition assessment.
     """
     if len(images) > 5:
         raise HTTPException(status_code=400, detail="Maximum 5 images allowed")
@@ -34,6 +35,7 @@ async def grading_assess(
         image_files=images,
         text_description=text_description or "",
         return_id=return_id,
+        product_name=product_name or "",
     )
     return result
 
