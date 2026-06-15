@@ -70,12 +70,7 @@ FIRST: Validate the image:
 
 {product_check}
 
-3. Does the image look AI-generated, digitally rendered, a stock photo, a 3D render, or computer-generated in any way?
-   - Look for signs: unnatural lighting, too-perfect surfaces, warped text, unrealistic reflections, smooth plastic-like textures, missing shadows, extra fingers/artifacts, watermarks from stock sites.
-   - If the image appears to be AI-generated or not a real photograph, respond with:
-   {{"error": true, "message": "This image appears to be AI-generated or digitally rendered. Please upload a real photograph of the actual product."}}
-
-4. If the image passes all checks, assess its physical condition.
+3. If the image passes both checks, assess its physical condition.
 
 Seller/returner description: {description}
 

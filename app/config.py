@@ -13,6 +13,9 @@ class Settings:
     # Google Gemini API keys (free tier: 15 RPM, limited RPD)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_API_KEY_2: str = os.getenv("GEMINI_API_KEY_2", "")
+    # SightEngine AI detection (free tier: 2000 ops/month)
+    SIGHTENGINE_API_USER: str = os.getenv("SIGHTENGINE_API_USER", "")
+    SIGHTENGINE_API_SECRET: str = os.getenv("SIGHTENGINE_API_SECRET", "")
     # Set to "false" to skip AI grading and use rule-based fallback only
     USE_BEDROCK: bool = os.getenv("USE_BEDROCK", "true").lower() == "true"
 

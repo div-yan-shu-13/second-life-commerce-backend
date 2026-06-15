@@ -7,6 +7,7 @@ from app.aws.s3 import upload_image, get_presigned_url
 from app.aws.rekognition import detect_labels
 from app.aws.bedrock import grade_product_with_image
 from app.aws.dynamodb import put_item, get_item
+from app.services.ai_detection import check_ai_generated
 from app.config import settings
 
 
@@ -42,6 +43,23 @@ async def assess_product(
         s3_key = f"grading/{grading_id}/{i}_{image_file.filename}"
         upload_image(file_bytes, s3_key, image_file.content_type or "image/jpeg")
         image_keys.append(s3_key)
+
+    # Step 1.5: AI-generated image detection (SightEngine pre-check)
+    if first_image_bytes:
+        ai_check = check_ai_generated(first_image_bytes, image_files[0].filename or "image.jpg")
+        if not ai_check["passed"]:
+            image_urls = [get_presigned_url(key) for key in image_keys]
+            processing_time_ms = int((time.time() - start_time) * 1000)
+            return {
+                "grading_id": grading_id,
+                "error": True,
+                "overall_grade": None,
+                "confidence": 0.0,
+                "defects": [],
+                "explanation": f"This image appears to be AI-generated (confidence: {ai_check['ai_score']:.0%}). Please upload a real photograph of the actual product.",
+                "image_urls": image_urls,
+                "processing_time_ms": processing_time_ms,
+            }
 
     # Step 2: Grade using Gemini vision (sends actual image)
     grading_result = None
